@@ -1,0 +1,70 @@
+---
+title: "PML Project"
+author: "Yizhou Zha"
+date: "24 August 2014"
+output: html_document
+---
+#Load the library and datasets we need for the analysis
+```{r echo=TRUE}
+library(caret)
+library(ggplot2)
+library(corrplot)
+library(randomForest)
+library(e1071)
+TrainData<-read.csv("pml-training.csv", header=TRUE)
+TestData<-read.csv("pml-testing.csv",header=TRUE)
+set.seed(1000)
+```
+
+```{r echo=TRUE}
+temp<-createDataPartition(TrainData$classe,list=FALSE, p=0.7)
+Training<-TrainData[temp,]
+Testing<-TrainData[-temp,]
+```
+Remove these valuse that close to zero and 'clean up' the datasets
+```{r echo=TRUE}
+a<-nearZeroVar(Training)
+Training<-Training[-a]
+Testing<-Testing[-a]
+TestData<-TestData[-a]
+```
+Remove missing values
+```{r echo=TRUE}
+temp<-which(lapply(Training,class) %in% c('numeric'))
+ModelPre<-preProcess(Training[,temp],method=c('bagImpute'))
+Train1<-predict(ModelPre,Training[,temp])
+Test1<-predict(ModelPre,Testing[,temp])
+TestData1<-predict(ModelPre,TestData[,temp])
+```
+Remove values that highly correlated predictiors
+```{r echo=TRUE}
+temp1<-cor(Train1)
+Corr<-findCorrelation(temp1,cutoff=.95)
+Training<-cbind(Training$classe,Train1[,-Corr])
+Testing<-cbind(Testing$classe, Test1[,-Corr])
+names(Training)[1]<-'classe'
+names(Testing)[1]<-'classe'
+TestData<-TestData1[,-Corr]
+corrplot(temp1, order="hclust",tl.cex=.5)
+```
+
+```{r echo=TRUE}
+ModelRF<-randomForest(classe~., Training)
+print(ModelRF)
+```
+## In-Sample Accuracy
+```{r echo=TRUE}
+TrainP<-predict(ModelRF,Training)
+print(confusionMatrix(TrainP,Training$classe))
+```
+##Out-of-Sample Accuracy
+```{r echo=TRUE}
+TestP<-predict(ModelRF,Testing)
+print(confusionMatrix(TestP,Testing$classe))
+```
+
+#Test the prediction
+```{r ehco=TRUE}
+result<-predict(ModelRF,TestData)
+print(result)
+```
